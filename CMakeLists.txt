@@ -6,9 +6,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC") #curlpp has broken build system
 add_subdirectory(arango-cxx-driver)
 
 add_library(arango-node-driver SHARED
-    node_init.cpp
-    node_request.cpp
-    node_connection.cpp
+    src/node_init.cpp
+    src/node_request.cpp
+    src/node_connection.cpp
 )
 
 # Gives our library file a .node extension without any "lib" prefix
