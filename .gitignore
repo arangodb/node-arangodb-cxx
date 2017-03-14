@@ -1,3 +1,5 @@
+node_modules
+usr
 compile_commands.json
 arango-node-driver/build/
 npm-debug.log
