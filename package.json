@@ -10,14 +10,17 @@
     "nan": "^2.5.1",
     "node-velocypack": "git+https://git@github.com/arangodb/node-velocypack.git"
   },
-
   "scripts": {
     "test": "node example.js",
-    "preinstall" : "git submodule init && git submodule update --recursive",
+    "preinstall": "./get_fuerte",
     "install": "cmake-js compile",
     "install-debug": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
     "install-debug-more": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
-    "git_clone" : "git clone https://github.com/arangodb/fuerte.git"
+    "git_init_1": "git submodule init && git submodule update --recursive",
+    "git_init_2": "cd fuerte && git submodule init && git submodule update --recursive"
   },
-  "gypfile": true
+  "gypfile": true,
+  "devDependencies": {
+    "npm-run-all": "^4.0.2"
+  }
 }

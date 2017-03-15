@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [[ -e fuerte ]]; then
+    exit 0
+fi
+
+set -e
+
+#avoid to download all boost libs
+#git clone --recursive https://github.com/arangodb/fuerte.git
+
+git clone https://github.com/arangodb/fuerte.git
+cd fuerte
+git submodule init
+git submodule update
