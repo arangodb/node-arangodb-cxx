@@ -12,8 +12,7 @@
   },
   "scripts": {
     "test": "node example.js",
-    "preinstall": "./get_fuerte",
-    "install": "cmake-js compile",
+    "install": "./get_fuerte && cmake-js compile",
     "install-debug": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
     "install-debug-more": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
     "git_init_1": "git submodule init && git submodule update --recursive",
