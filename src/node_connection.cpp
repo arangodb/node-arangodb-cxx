@@ -150,10 +150,11 @@ NAN_METHOD(NConnection::New) {
   }
 }
 
-NAN_METHOD(NConnection::reqestsLeft) {
+NAN_METHOD(NConnection::requestsLeft) {
   try {
     auto& cls = unwrapSelf<NConnection>(info)->_cppClass;
-    info.GetReturnValue().Set(Nan::New<v8::Integer>(cls->requestsLeft()));
+    v8::Local<v8::Uint32> rv = Nan::New<v8::Uint32>(static_cast<std::uint32_t>(cls->requestsLeft()));
+    info.GetReturnValue().Set(rv);
   } catch(std::exception const& e){
     Nan::ThrowError("Connection.reqestsLeft binding failed with exception");
   }

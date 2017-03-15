@@ -37,7 +37,6 @@ public:
     v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
     tpl->SetClassName(Nan::New("ConnectionBuilder").ToLocalChecked());
     tpl->InstanceTemplate()->SetInternalFieldCount(1); //should be equal to the number of data members
-    Nan::SetPrototypeMethod(tpl, "requestsLeft", NConnectionBuilder::connect);
     Nan::SetPrototypeMethod(tpl, "connect", NConnectionBuilder::connect);
     Nan::SetPrototypeMethod(tpl, "host", NConnectionBuilder::host);
     Nan::SetPrototypeMethod(tpl, "async", NConnectionBuilder::async);
@@ -48,7 +47,6 @@ public:
   }
 
   static NAN_METHOD(New);
-  static NAN_METHOD(reqestsLeft);
   static NAN_METHOD(connect);
   static NAN_METHOD(host);
   static NAN_METHOD(async);
@@ -79,12 +77,14 @@ public:
     v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
     tpl->SetClassName(Nan::New("Connection").ToLocalChecked());
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    Nan::SetPrototypeMethod(tpl, "requestsLeft", NConnection::requestsLeft);
     Nan::SetPrototypeMethod(tpl, "sendRequest", NConnection::sendRequest);
     constructor().Reset(tpl->GetFunction());
     target->Set( Nan::New("Connection").ToLocalChecked() , tpl->GetFunction()); //put in module init?!
   }
 
   static NAN_METHOD(New);
+  static NAN_METHOD(requestsLeft);
   static NAN_METHOD(sendRequest);
 
   std::shared_ptr<::fu::Connection>& cppClass() {

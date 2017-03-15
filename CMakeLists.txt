@@ -3,7 +3,7 @@ project(arango-node-driver)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC") #curlpp has broken build system
-add_subdirectory(arango-cxx-driver)
+add_subdirectory(fuerte)
 
 add_library(arango-node-driver SHARED
     src/node_init.cpp
