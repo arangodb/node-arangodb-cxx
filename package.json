@@ -13,9 +13,11 @@
 
   "scripts": {
     "test": "node example.js",
+    "preinstall" : "git submodule init && git submodule update --recursive",
     "install": "cmake-js compile",
     "install-debug": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
-    "install-debug-more": "VERBOSE=1 cmake-js configure -D && cmake-js print-build"
+    "install-debug-more": "VERBOSE=1 cmake-js configure -D && cmake-js print-build",
+    "git_clone" : "git clone https://github.com/arangodb/fuerte.git"
   },
   "gypfile": true
 }
