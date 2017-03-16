@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.4)
 project(arango-node-driver)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
