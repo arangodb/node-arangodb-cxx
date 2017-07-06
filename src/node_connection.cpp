@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2017 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -18,112 +18,44 @@
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
 /// @author Jan Christoph Uhde
+/// @author Ewout Prangsma
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "node_connection.h"
-#include "node_request.h"
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <atomic>
+#include <thread>
+#include <string>
+#include <stdlib.h>
+
 #include <fuerte/FuerteLogger.h>
 #include <fuerte/helper.h>
 
+#include "node_connection.h"
+#include "node_connection_builder.h"
+#include "node_request.h"
+#include "node_response.h"
+
 namespace arangodb { namespace fuerte { namespace js {
 
-
-///////////////////////////////////////////////////////////////////////////////
-// NConnectionBuilder /////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-NAN_METHOD(NConnectionBuilder::New) {
-  try {
-    if (info.IsConstructCall()) {
-      NConnectionBuilder* obj = new NConnectionBuilder();
-      obj->Wrap(info.This());
-      info.GetReturnValue().Set(info.This());
-    } else {
-      v8::Local<v8::Function> builder = Nan::New(constructor());
-      info.GetReturnValue().Set(Nan::NewInstance(builder).ToLocalChecked());
+static unsigned int getThreadCount() {
+  unsigned int count = std::thread::hardware_concurrency();
+  auto envVar = getenv("FUERTE_THREAD_COUNT");
+  if (envVar) {
+    try {
+      auto i = std::stoi(envVar);
+      if (i >= 1) {
+        count = (unsigned int)i;
+      }
+    } catch (...) {
+      throw std::runtime_error("Invalid value in FUERTE_THREAD_COUNT");
     }
- } catch(std::exception const& e){
-   Nan::ThrowError("ConnectionBuilder.New binding failed with exception");
- }
-}
-
-NAN_METHOD(NConnectionBuilder::connect){
-  try {
-    v8::Local<v8::Function> connFunction = Nan::New(NConnection::constructor());
-    const int argc = 1;
-    v8::Local<v8::Value> argv[argc] = {info.This()};
-    v8::Local<v8::Object> connInstance;
-    bool ok = Nan::NewInstance(connFunction, argc, argv).ToLocal(&connInstance);
-    if(!ok){
-      Nan::ThrowError("ConnectionBuilder.connect binding failed with exception"
-                      " - please check connection parameters and server");
-      return;
-    }
-    info.GetReturnValue().Set(connInstance);
-  } catch(std::exception const& e){
-    std::cerr << "## DRIVER LEVEL EXCEPTION - START ##" << std::endl;
-    std::cerr << e.what() << std::endl;
-    std::cerr << "## DRIVER LEVEL EXCEPTION - END   ##" << std::endl;
-    Nan::ThrowError("ConnectionBuilder.connect binding failed with exception"
-                    " - Make sure the server is up and running");
   }
+  return count;
 }
 
-NAN_METHOD(NConnectionBuilder::host){
-  try {
-    if (info.Length() != 1 ) {
-      Nan::ThrowTypeError("Wrong number of Arguments");
-    }
-    unwrapSelf<NConnectionBuilder>(info)->_cppClass.host(to<std::string>(info[0]));
-    info.GetReturnValue().Set(info.This());
-  } catch(std::exception const& e){
-    std::cerr << "## DRIVER LEVEL EXCEPTION - START ##" << std::endl;
-    std::cerr << e.what() << std::endl;
-    std::cerr << "## DRIVER LEVEL EXCEPTION - END   ##" << std::endl;
-    std::string errorMesasge = std::string("ConnectionBuilder.host binding failed with exception: ") + e.what();
-    Nan::ThrowError(errorMesasge.c_str());
-  }
-}
-
-NAN_METHOD(NConnectionBuilder::async){
-  try {
-    if (info.Length() != 1 ) {
-      Nan::ThrowTypeError("Wrong number of Arguments");
-    }
-    unwrapSelf<NConnectionBuilder>(info)->_cppClass.async(to<bool>(info[0]));
-    info.GetReturnValue().Set(info.This());
-  } catch(std::exception const& e){
-    Nan::ThrowError("ConnectionBuilder.async binding failed with exception");
-  }
-}
-
-NAN_METHOD(NConnectionBuilder::user){
-  try {
-    if (info.Length() != 1 ) {
-      Nan::ThrowTypeError("Wrong number of Arguments");
-    }
-    unwrapSelf<NConnectionBuilder>(info)->_cppClass.user(to<std::string>(info[0]));
-    info.GetReturnValue().Set(info.This());
-  } catch(std::exception const& e){
-    Nan::ThrowError("ConnectionBuilder.user binding failed with exception");
-  }
-}
-
-NAN_METHOD(NConnectionBuilder::password){
-  try {
-    if (info.Length() != 1 ) {
-      Nan::ThrowTypeError("Wrong number of Arguments");
-    }
-    unwrapSelf<NConnectionBuilder>(info)->_cppClass.password(to<std::string>(info[0]));
-    info.GetReturnValue().Set(info.This());
-  } catch(std::exception const& e){
-    Nan::ThrowError("ConnectionBuilder.user binding failed with exception");
-  }
-}
-
+static EventLoopService eventLoopService_(getThreadCount());
 
 ///////////////////////////////////////////////////////////////////////////////
 // NConnection ////////////////////////////////////////////////////////////////
@@ -131,29 +63,29 @@ NAN_METHOD(NConnectionBuilder::password){
 NAN_METHOD(NConnection::New) {
   try {
     if (info.IsConstructCall()) {
-      NConnection* obj = new NConnection();
-      if(info[0]->IsObject()){ // NConnectionBuilderObject -- exact type check?
-        obj->_cppClass = unwrap<NConnectionBuilder>(info[0])->_cppClass.connect();
-        if(obj->_cppClass == nullptr){
-          Nan::ThrowError("Connection.New binding failed with exception - check connetction string");
+      auto obj = new NConnection();
+      if (info[0]->IsObject()) { // NConnectionBuilderObject -- exact type check?
+        auto conn = unwrap<NConnectionBuilder>(info[0])->cppClass()->connect(eventLoopService_);
+        if (conn == nullptr) {
+          Nan::ThrowError("Connection.New binding failed with exception - check connection string");
           return;
         }
+        obj->setCppClass(conn);
       }
       obj->Wrap(info.This());
       info.GetReturnValue().Set(info.This());
     } else {
-      v8::Local<v8::Function> cons = Nan::New(constructor());
-      info.GetReturnValue().Set(Nan::NewInstance(cons).ToLocalChecked());
+      info.GetReturnValue().Set(NConnection::NewInstance().ToLocalChecked());
     }
   } catch(std::exception const& e){
     Nan::ThrowError("Connection.New binding failed with exception");
   }
 }
 
-NAN_METHOD(NConnection::requestsLeft) {
+NAN_GETTER(NConnection::getRequestsLeft) {
   try {
-    auto& cls = unwrapSelf<NConnection>(info)->_cppClass;
-    v8::Local<v8::Uint32> rv = Nan::New<v8::Uint32>(static_cast<std::uint32_t>(cls->requestsLeft()));
+    auto result = self(info)->requestsLeft();
+    auto rv = Nan::New<v8::Uint32>(static_cast<std::uint32_t>(result));
     info.GetReturnValue().Set(rv);
   } catch(std::exception const& e){
     Nan::ThrowError("Connection.reqestsLeft binding failed with exception");
@@ -164,17 +96,6 @@ NAN_METHOD(NConnection::requestsLeft) {
 // SendRequest ////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-// When we switch to c++14 we should use UniquePersistent and move it into
-// the generalized lambda caputre avoiding the locking alltogehter
-static std::map<fu::MessageID
-               ,std::pair<v8::Persistent<v8::Function> // error
-                         ,v8::Persistent<v8::Function> // success
-                         >
-              > callbackMap;
-
-static std::mutex maplock;
-static std::atomic<uint64_t> jsMessageID(0);
-
 const std::string callbackErrorMessage(
   "##################################################\n"
   "#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#\n"
@@ -184,167 +105,107 @@ const std::string callbackErrorMessage(
   "##################################################\n"
 );
 
-NAN_METHOD(NConnection::sendRequest) {
-  try {
-    if (info.Length() != 3 ) {
-      Nan::ThrowTypeError("Not 3 Arguments");
+class PendingRequest {
+ public:
+  PendingRequest(v8::Local<v8::Value> const& request, v8::Local<v8::Value> const& callback) :
+    jsRequest(v8::Local<v8::Object>::Cast(request)),
+    jsCallback(v8::Local<v8::Function>::Cast(callback)) {
+    NRequest::CheckedUnwrap(Nan::New(jsRequest));
+  }
+
+  // Initialize the async handle (cannot be called in ctor due to shared_from_this)
+  void InitAsync() {
+    uv_async_init(uv_default_loop(), &async_handle, uvCallbackStatic);
+    async_handle.data = this;
+  }
+
+  // Start sending the request
+  void Start(NConnection* conn) {
+    // Clone the request so we keep the one in the JS object alive.
+    v8::Local<v8::Object> locJsReq = New(jsRequest);
+    auto jsReq = Nan::ObjectWrap::Unwrap<NRequest>(locJsReq);
+    auto req = std::unique_ptr<fu::Request>(new fu::Request(*(jsReq->cppClass()))); 
+    conn->cppClass()->sendRequest(std::move(req), [this](unsigned err, std::unique_ptr<fu::Request> creq, std::unique_ptr<fu::Response> cres){
+      cppCallback(err, std::move(creq), std::move(cres));
+    });
+  }
+
+ private:
+  // cppCallback is called on any of the fuerte EventLoopService threads.
+  void cppCallback(unsigned err, std::unique_ptr<fu::Request> creq, std::unique_ptr<fu::Response> cres) {
+    // Save data 
+    this->error = err; 
+    this->cppResponse = std::move(cres);
+    // Trigger callback on main event loop
+    uv_async_send(&async_handle);
+  }
+
+  // Static UV callback.
+  static NAUV_WORK_CB(uvCallbackStatic) {
+    // Invoke actual callback handler (on event loop)
+    auto penReq = static_cast<PendingRequest*>(async->data);
+    penReq->uvCallback();
+    // Close handle
+    uv_close((uv_handle_t*)async, uvCleanup);
+  }
+
+  // Static UV cleanup callback.
+  static void uvCleanup(uv_handle_t *handle) {
+    auto penReq = static_cast<PendingRequest*>(handle->data);
+    delete penReq;
+  }
+
+  // uvCallback is called on the main event loop.
+  void uvCallback() {
+    Nan::HandleScope scope;
+
+    // wrap response
+    v8::Local<v8::Value> response;
+    if (cppResponse) {
+      // Create Response object
+      auto resObj = NResponse::NewInstance().ToLocalChecked();
+      unwrap<NResponse>(resObj)->setCppClass(std::move(cppResponse));
+      // Store request in response 
+      resObj->Set(Nan::New("request").ToLocalChecked(), Nan::New(jsRequest));
+      response = resObj;
+    } else {
+      response = Nan::Undefined();
     }
 
-    if (!info[1]->IsFunction() || !info[2]->IsFunction()){
+    // Call callback
+    const unsigned argc = 2;
+    v8::Local<v8::Value> argv[argc] = { Nan::New<v8::Integer>(error), response };
+    // call
+    jsCallback.Call(argc, argv);
+  }
+
+  // members
+  Nan::Persistent<v8::Object> jsRequest;
+  Nan::Callback jsCallback;
+  uv_async_t async_handle;
+  unsigned error;
+  std::unique_ptr<fu::Response> cppResponse;
+};
+
+NAN_METHOD(NConnection::sendRequest) {
+  try {
+    // Check arguments
+    if (info.Length() != 2 ) {
+      Nan::ThrowTypeError("Not 2 Arguments");
+    }
+    if (!info[0]->IsObject()){
+      Nan::ThrowTypeError("Request is not an Object");
+    }
+    if (!info[1]->IsFunction()){
       Nan::ThrowTypeError("Callback is not a Function");
     }
 
-    // get isolate - has node only one context??!?!? how do they work
-    // context is probably a lighter version of isolate but does not allow threads
-    v8::Isolate* iso = v8::Isolate::GetCurrent();
-
-    uint64_t id = jsMessageID.fetch_add(1);
-    {
-      std::lock_guard<std::mutex> lock(maplock);
-      auto& callbackPair = callbackMap[id]; //create map element
-      auto jsOnErr = v8::Local<v8::Function>::Cast(info[1]);
-      callbackPair.first.Reset(iso, jsOnErr);
-
-      auto jsOnSucc = v8::Local<v8::Function>::Cast(info[2]);
-      callbackPair.second.Reset(iso, jsOnSucc);
-    }
-
-    fu::OnErrorCallback err = [iso,id](unsigned err
-                                ,std::unique_ptr<fu::Request> creq
-                                ,std::unique_ptr<fu::Response> cres)
-    {
-      try {
-#if ENABLE_FUERTE_LOG_NODE > 0
-        if(creq->header.responseCode && creq->header.responseCode.get() >= 400){
-          std::cout << "response code >= 400\n"
-                    << fu::to_string(*creq)
-                    << fu::to_string(*cres)
-                    << std::endl;
-        }
-#endif
-        v8::HandleScope scope(iso);
-        auto jsOnErr = v8::Local<v8::Function>();
-        { //create local function and dispose persistent
-          std::lock_guard<std::mutex> lock(maplock);
-          auto& mapElement = callbackMap[id];
-          jsOnErr = v8::Local<v8::Function>::New(iso,mapElement.first);
-          mapElement.first.Reset();
-          mapElement.second.Reset();
-          callbackMap.erase(id);
-        }
-
-        // wrap request
-        v8::Local<v8::Function> requestProto = v8::Local<v8::Function>::New(iso,NRequest::constructor());
-        assert(!requestProto.IsEmpty());
-        v8::Local<v8::Object> reqObj;
-        bool ok = requestProto->NewInstance(iso->GetCurrentContext()).ToLocal(&reqObj);
-        if(!ok) {
-          std::cerr << callbackErrorMessage << std::endl;
-          iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,callbackErrorMessage.c_str())));
-          return;
-        }
-        unwrap<NRequest>(reqObj)->setCppClass(std::move(creq));
-
-        // wrap response
-        v8::Local<v8::Function> responseProto = v8::Local<v8::Function>::New(iso,NResponse::constructor());
-        assert(!responseProto.IsEmpty());
-        v8::Local<v8::Object> resObj;
-        ok = responseProto->NewInstance(iso->GetCurrentContext()).ToLocal(&resObj);
-        if(!ok) {
-          std::cerr << callbackErrorMessage << std::endl;
-          iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,callbackErrorMessage.c_str())));
-          return;
-        }
-        unwrap<NResponse>(resObj)->setCppClass(std::move(cres));
-
-        // build args
-        const unsigned argc = 3;
-        v8::Local<v8::Value> argv[argc] = { Nan::New<v8::Integer>(err), reqObj, resObj };
-
-        // call
-        jsOnErr->Call(iso->GetCurrentContext(), jsOnErr, argc, argv);
-      } catch (std::exception const& e){
-        std::string errorMesasge("Exception in success callback: ");
-        errorMesasge += e.what();
-        iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,errorMesasge.c_str())));
-      }
-    };
-
-    fu::OnSuccessCallback succ = [iso,id](std::unique_ptr<fu::Request> creq
-                                   ,std::unique_ptr<fu::Response> cres)
-    {
-      try {
-#if ENABLE_FUERTE_LOG_NODE > 0
-        if(creq->header.responseCode && creq->header.responseCode.get() >= 400){
-          std::cout << "response code >= 400\n"
-                    << fu::to_string(*creq)
-                    << fu::to_string(*cres)
-                    << std::endl;
-        }
-#endif
-        FUERTE_LOG_NODE << "enter on fuerte-node success callback" << std::endl;
-        v8::HandleScope scope(iso);
-
-        auto jsOnSucc = v8::Local<v8::Function>();
-        { // create locacl function and dispose persistent
-          std::lock_guard<std::mutex> lock(maplock);
-          auto& mapElement = callbackMap[id];
-          //create local function
-          jsOnSucc = v8::Local<v8::Function>::New(iso,callbackMap[id].second);
-
-          //dispose map element
-          mapElement.first.Reset(); // do not depend on kResetInDestructorFlag of Persistent
-          mapElement.second.Reset();
-          callbackMap.erase(id);
-        }
-
-            // other ways to do the same
-            // v8::Local<v8::Function> requestProto = Nan::New(NConnection::constructor()); // with Nan
-            // auto reqObj = Nan::NewInstance(requestProto).ToLocalChecked(); // with Nan
-            // auto reqObj = requestProto->NewInstance(iso->GetCurrentContext()).ToLocalChecked(); // should not crash!
-
-        // wrap request
-        v8::Local<v8::Function> requestProto = v8::Local<v8::Function>::New(iso,NRequest::constructor());
-        assert(!requestProto.IsEmpty());
-        v8::Local<v8::Object> reqObj;
-        bool ok = requestProto->NewInstance(iso->GetCurrentContext()).ToLocal(&reqObj);
-        if(!ok) {
-          std::cerr << callbackErrorMessage << std::endl;
-          iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,callbackErrorMessage.c_str())));
-          return;
-        }
-        unwrap<NRequest>(reqObj)->setCppClass(std::move(creq));
-
-        // wrap response
-        v8::Local<v8::Function> responseProto = v8::Local<v8::Function>::New(iso,NResponse::constructor());
-        assert(!responseProto.IsEmpty());
-        v8::Local<v8::Object> resObj;
-        ok = responseProto->NewInstance(iso->GetCurrentContext()).ToLocal(&resObj);
-        if(!ok) {
-          std::cerr << callbackErrorMessage << std::endl;
-          iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,callbackErrorMessage.c_str())));
-          return;
-        }
-        unwrap<NResponse>(resObj)->setCppClass(std::move(cres));
-
-        // build args
-        const unsigned argc = 2;
-        v8::Local<v8::Value> argv[argc] = { reqObj, resObj };
-
-        // call
-        //jsOnSucc->Call(v8::Null(iso), argc, argv);
-        jsOnSucc->Call(iso->GetCurrentContext(), jsOnSucc, argc, argv);
-        //jsOnSucc->Call(iso->GetCurrentContext(), iso->GetCurrentContext()->Global(), argc, argv);
-      } catch (std::exception const& e){
-        std::string errorMesasge("Exception in error callback: ");
-        errorMesasge += e.what();
-        iso->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(iso,errorMesasge.c_str())));
-      }
-    };
-
-    //finally invoke the c++ callback
-    auto req = std::unique_ptr<fu::Request>(new fu::Request(*(unwrap<NRequest>(info[0])->_cppClass))); //copy request so the old object stays valid
-    unwrapSelf<NConnection>(info)->_cppClass->sendRequest(std::move(req), err, succ);
+    // Create PendingRequest 
+    auto penReq = new PendingRequest(info[0], info[1]);
+    penReq->InitAsync();
+    // Start request
+    auto conn = NConnection::CheckedUnwrap(info.Holder());
+    penReq->Start(conn);
   } catch(std::exception const& e){
     Nan::ThrowError("Connection.sendRequest binding failed with exception");
     return;

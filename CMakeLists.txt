@@ -2,13 +2,22 @@ cmake_minimum_required(VERSION 3.4)
 project(arango-node-driver)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC") #curlpp has broken build system
-add_subdirectory(fuerte)
+set(CMAKE_CXX_STANDARD 14)
+
+set(VELOCYPACK_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/velocypack)
+
+option(BuildVelocyPackExamples "Build examples" OFF)
+option(BuildTools "Build support programs and tools" OFF)
+
+add_subdirectory(dependencies/fuerte)
 
 add_library(arango-node-driver SHARED
     src/node_init.cpp
+    src/node_vpack.cpp
     src/node_request.cpp
+    src/node_response.cpp
     src/node_connection.cpp
+    src/node_connection_builder.cpp
 )
 
 # Gives our library file a .node extension without any "lib" prefix

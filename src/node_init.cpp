@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2017 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -18,46 +18,29 @@
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
 /// @author Jan Christoph Uhde
+/// @author Ewout Prangsma
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "node_init.h"
 #include "node_connection.h"
+#include "node_connection_builder.h"
 #include "node_request.h"
+#include "node_response.h"
+#include "node_vpack.h"
+
 #include <iostream>
 #include <fuerte/loop.h>
+#include <fuerte/FuerteLogger.h>
 
 namespace arangodb { namespace fuerte { namespace js {
 
-NAN_METHOD(poll){
-  try{
-    ::fu::poll();
-  } catch (std::exception const& ex){
-    // LoopProvider::getProvider().resetIoService(); // reset after poll?
-    // TODO - restart connection - c++ concept first!!
-    auto errorMessage = Nan::New<v8::String>(std::string("error in asio loop") + ex.what()).ToLocalChecked();
-    Nan::ThrowError(errorMessage);
-  }
-}
-
-NAN_METHOD(run){
-  try{
-    ::fu::run();
-  } catch (std::exception const& ex){
-    LoopProvider::getProvider().resetIoService();
-    auto errorMessage = Nan::New<v8::String>(std::string("error in asio loop") + ex.what()).ToLocalChecked();
-    Nan::ThrowError(errorMessage);
-  }
-}
-
 NAN_MODULE_INIT(InitAll) {
-  std::cout << "About to init classes" << std::endl;
+  FUERTE_LOG_NODE << "About to init classes" << std::endl;
+  InitVPack(target);
   NConnectionBuilder::Init(target);
   NConnection::Init(target);
   NRequest::Init(target);
   NResponse::Init(target);
-
-  NAN_EXPORT(target, poll);
-  NAN_EXPORT(target, run);
 }
 
 }}}

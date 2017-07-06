@@ -4,6 +4,6 @@ compile_commands.json
 arango-node-driver/build/
 npm-debug.log
 current_files.vim
-fuerte
+dependencies
 build
 yarn.lock

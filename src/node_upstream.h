@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2017 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -101,6 +101,10 @@ T to(v8::Local<v8::Value> const& from){
   return  T();
 }
 
+inline v8::Local<v8::String> toString(std::string const& str) {
+  return Nan::New(str).ToLocalChecked();
+}
+
 template <typename ClassType>
 ClassType* unwrap(v8::Local<v8::Value> const& info){
   assert(info->IsObject());
@@ -108,7 +112,7 @@ ClassType* unwrap(v8::Local<v8::Value> const& info){
 }
 
 template <typename ClassType, typename T>
-ClassType* unwrapSelf(Nan::FunctionCallbackInfo<T> const& info){
+ClassType* _unwrapSelf(Nan::FunctionCallbackInfo<T> const& info){
   return Nan::ObjectWrap::Unwrap<ClassType>(info.Holder());
 }
 

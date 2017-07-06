@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2017 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
 /// @author Jan Christoph Uhde
+/// @author Ewout Prangsma
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
@@ -26,78 +27,37 @@
 
 #include <iostream>
 #include "node_upstream.h"
+#include "object_wrap.h"
+
 namespace arangodb { namespace fuerte { namespace js {
 
-class NConnectionBuilder : public Nan::ObjectWrap {
-  friend class NConnection;
-  NConnectionBuilder(): _cppClass(){}
-
-public:
-  static NAN_MODULE_INIT(Init) {
-    v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
-    tpl->SetClassName(Nan::New("ConnectionBuilder").ToLocalChecked());
-    tpl->InstanceTemplate()->SetInternalFieldCount(1); //should be equal to the number of data members
-    Nan::SetPrototypeMethod(tpl, "connect", NConnectionBuilder::connect);
-    Nan::SetPrototypeMethod(tpl, "host", NConnectionBuilder::host);
-    Nan::SetPrototypeMethod(tpl, "async", NConnectionBuilder::async);
-    Nan::SetPrototypeMethod(tpl, "user", NConnectionBuilder::user);
-    Nan::SetPrototypeMethod(tpl, "password", NConnectionBuilder::password);
-    constructor().Reset(tpl->GetFunction());
-    target->Set( Nan::New("ConnectionBuilder").ToLocalChecked() , tpl->GetFunction()); //put in module init?!
-  }
-
-  static NAN_METHOD(New);
-  static NAN_METHOD(connect);
-  static NAN_METHOD(host);
-  static NAN_METHOD(async);
-  static NAN_METHOD(user);
-  static NAN_METHOD(password);
-
-  arangodb::fuerte::ConnectionBuilder& cppClass() {
-    return _cppClass;
-  }
-
-private:
-  arangodb::fuerte::ConnectionBuilder _cppClass;
-
-  static Nan::Persistent<v8::Function>& constructor(){
-    static Nan::Persistent<v8::Function> ctor;
-    return ctor;
-  }
-
-};
-
-class NConnection : public Nan::ObjectWrap {
+// NConnection is a node wrapper around the fuerte Connection class.
+class NConnection : public ObjectWrap<NConnection, fu::Connection, std::shared_ptr<fu::Connection>> {
+  friend class PendingRequest;
 public:
   friend class NConnectionBuilder;
-  NConnection(): _cppClass(){}
-  NConnection(std::shared_ptr<::fu::Connection> conn): _cppClass(std::move(conn)){}
+  NConnection(): ObjectWrap(nullptr) {}
+  NConnection(std::shared_ptr<::fu::Connection> conn): ObjectWrap(std::move(conn)) {}
 
   static NAN_MODULE_INIT(Init) {
-    v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
+    auto tpl = Nan::New<v8::FunctionTemplate>(New);
     tpl->SetClassName(Nan::New("Connection").ToLocalChecked());
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    Nan::SetPrototypeMethod(tpl, "requestsLeft", NConnection::requestsLeft);
-    Nan::SetPrototypeMethod(tpl, "sendRequest", NConnection::sendRequest);
-    constructor().Reset(tpl->GetFunction());
-    target->Set( Nan::New("Connection").ToLocalChecked() , tpl->GetFunction()); //put in module init?!
+
+    Nan::SetPrototypeMethod(tpl, "nativeSendRequest", NConnection::sendRequest);
+
+    auto itpl = tpl->InstanceTemplate();
+    Nan::SetAccessor(itpl, toString("requestsLeft"), NConnection::getRequestsLeft);
+
+    initClass("Connection", target, tpl);
   }
 
+  // Node constructor
   static NAN_METHOD(New);
-  static NAN_METHOD(requestsLeft);
+  // requestsLeft returns the number of unfinished requests
+  static NAN_GETTER(getRequestsLeft);
+  // sendRequest starts sending a request
   static NAN_METHOD(sendRequest);
-
-  std::shared_ptr<::fu::Connection>& cppClass() {
-    return _cppClass;
-  }
-private:
-  std::shared_ptr<::fu::Connection> _cppClass;
-
-  static Nan::Persistent<v8::Function>& constructor(){
-    static Nan::Persistent<v8::Function> ctor;
-    return ctor;
-  }
-
 };
 
 }}}

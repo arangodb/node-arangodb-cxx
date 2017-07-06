@@ -1,59 +1,42 @@
-# fuerte
+# Node-arangodb-cxx aka Fuerte for NodeJS.
 
-Fuerte is a c++ library that allows you to communicate with a ArangoDB database
-over the http and velocystream (optionally ssl encrypted) protocols.
+This package contains a low-level NodeJS connection driver 
+that enables you to make an HTTP(s) or Velocystream connection
+to an ArangoDB server.
 
-## design
+It wraps the [C++ Fuerte](https://github.com/arangodb/fuerte) driver.
 
-Fuerte is a communication library only. You will get what the other side is
-sending you. No conversion is done! When receiving a message fuerte provides
-content type and payload. In case the payload is velocypack you can access the
-slices with slices() when using the c++ driver. The node driver will always
-provide the payload as it is. 
+In most cases you do not use this driver directly.
+Instead you should consider using [ArangoJS](https://github.com/arangodb/arangojs). 
+`ArangoJS` is a high level driver that contains a much more client 
+programmer oriented API.
 
-## driver: C++ Driver for ArangoDB
+## API
 
-The project to create the fuerte library is located in the subdirectory
-`cmake-cxx-driver`. It uses `cmake` as build system.
+See [API](./docs/index.md)
 
-## Build requirements
-
-The following development packages need to be installed
-
-- C++ 11 compiler
-- cmake 3.0
-- cURL: https://github.com/curl/curl (needs to be found by FindCURL.cmake)
-
-## nodejs: a low-level node.js driver
+## Installation
 
 Install node and npm and execute
 
 ```
-> cd cmake-node-driver
-> npm install
+npm install --save fuerte
 ```
 
-## status of fuerte
+Then to see Fuerte in action, make sure you have ArangoDB running at localhost on port 8529, and run `examples.js` from this repository.
 
-Basic functionality of the c++ and node driver are implemented:
+```
+node example.js
+```
 
-Things that are missing:
+## Threading
 
-- agenda - the task is to get the nosql-tests working - what do those tests require?
-- tests - without tests we never know the exact status (below is a list of missing featues)
-- hanging with 100k requests (needs to be found)
-- c++/node: incomplete handling of broken connections - need to find out what is missing (worse in node)
-- c++: missing handling of endianess
-- http/vst: no authentication
-- http/vst: content type handling needs testing
-- http: only first slice is added as payload
-- vst: sending only single chunk messages
-- vst: only the first slice is available via slices()
-- vst: no compression
-- vst: not handling all versions - velocystream version unknown (it works with the server)
-- node: no good node integration (libuv)
-- node: no real asynchronous work because of the above
-- node: not building on different systems (locating of headers)
+Fuerte is moving work away from the NodeJS event loop as soon as possible and tries to do as much as possible in
+its own threadpool. 
+The number of threads in this pool relates to the number of CPU cores available in your machine.
+
+To override this default behavior, you can specify it in a `FUERTE_THREAD_COUNT` environment variable.
+E.g. `FUERTE_THREAD_COUNT=3` causes the threadpool to use 3 threads.
 
 ## License
 

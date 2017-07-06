@@ -31,47 +31,51 @@ function showResponse(res) {
   }
 }
 
-async function run_example(connection, proto) {
-  try {
-    // Use simple get
+function run_example(connection, proto) {
+  function test1(next) {
     console.log("queue 1 " + proto)
-    const res = await connection.get('/_api/version');
-    showResponse(res);
-    console.log("1 done " + proto)
-    console.log("------------------------------------------")
-  } catch (e) {
-    showError(e);
+    connection.get('/_api/version', (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+      console.log("1 done " + proto)
+      console.log("------------------------------------------")
+      next();
+    });
   }
 
-  try {
+  function test2(next) {
     // Make lowest level requests
     console.log("queue 2 " + proto);
     let req = new fuerte.Request();
     req.method = 'get';
     req.path = '/_api/version';
-    const ares1 = connection.sendRequest(req);
+    connection.sendRequest(req, (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+    });
     console.log("queue 3 " + proto)
-    const ares2 = connection.sendRequest(req);
-    showResponse(await ares1);
-    showResponse(await ares2);
-    console.log("2,3 done " + proto)
-    console.log("------------------------------------------")
-  } catch (e) {
-    showError(e);
+    connection.sendRequest(req, (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+      console.log("2,3 done " + proto)
+      console.log("------------------------------------------")
+      next();
+    });
   }
 
-  try {
+  function test3(next) {
     // Post data
     console.log("queue 4 " + proto)
-    const res = await connection.post('/_api/cursor', {"query": "FOR x IN 1..5 RETURN x"});
-    showResponse(res);
-    console.log("4 done " + proto)
-    console.log("------------------------------------------")
-  } catch (e) {
-    showError(e);
+    connection.post('/_api/cursor', {"query": "FOR x IN 1..5 RETURN x"}, (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+      console.log("4 done " + proto)
+      console.log("------------------------------------------")
+      next();      
+    });
   }
 
-  try {
+  function test4(next) {
     // Posting using low level request
     console.log("queue 5 " + proto)
     let req = new fuerte.Request();
@@ -79,29 +83,38 @@ async function run_example(connection, proto) {
     req.method = "post";
     req.path = "/_api/document/_users";
     req.addSlice(slice);
-    const res = await connection.sendRequest(req);
-    showResponse(res);
-    console.log("5 done " + proto)
-    console.log("------------------------------------------")
-  } catch (e) {
-    showError(e);
+    connection.sendRequest(req, (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+      console.log("5 done " + proto)
+      console.log("------------------------------------------")
+      next();      
+    });
   }
 
-  try {
+  function test5(next) {
     // Generic get/post/... using do method.
     console.log("queue 6 " + proto)
-    const res = await connection.do({
+    connection.do({
       path: '/_api/document/_users',
       method: 'post',
       acceptType: 'application/json',
       data: {},
+    }, (err, res) => {
+      if (err) showError(err, res);
+      else showResponse(res);
+      console.log("6 done " + proto)
+      console.log("------------------------------------------")
+      next();  
     });
-    showResponse(res);
-    console.log("6 done " + proto)
-    console.log("------------------------------------------")
-  } catch (e) {
-    showError(e);
   }
+
+  const t5 = () => test5(() => {});
+  const t4 = () => test4(t5);
+  const t3 = () => test3(t4);
+  const t2 = () => test2(t3);
+  const t1 = () => test1(t2);
+  t1();
 }
 
 console.log("run examples with velocystream")

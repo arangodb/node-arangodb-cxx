@@ -1,0 +1,1 @@
+export const serverURL = process.env.TEST_ARANGODB_URL || 'http://localhost:8529'
